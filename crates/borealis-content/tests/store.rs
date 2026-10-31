@@ -347,3 +347,45 @@ fn a_book_edition_set_by_the_user_retags_its_elements_when_content_loads() {
         "player's handbook"
     );
 }
+
+/// IM17: a book can be set to Both editions (`any`), and a book the importer tagged for Both
+/// (its `Source` element is `any`) can be set back to one edition: then every element of the
+/// book takes it, as the `any` tags came from the guess, not from edition-neutral content.
+#[test]
+fn a_book_set_to_both_editions_and_back_retags_its_elements() {
+    let book = |id: &str, name: &str| {
+        let mut b = el(id, "Source", "Core");
+        b.name = name.into();
+        b
+    };
+    let mut both = file(vec![
+        book("ID_BB_SOURCE", "Classes 2014/2024"),
+        el("ID_BB_CLASS", "Class", "Classes 2014/2024"),
+        el("ID_BB_HELPER", "Grants", "Internal"),
+    ]);
+    both.ruleset = Some(Ruleset::Any);
+    let mut old = file(vec![
+        book("ID_OB_SOURCE", "Old Book"),
+        el("ID_OB_CLASS", "Class", "Old Book"),
+    ]);
+    old.ruleset = Some(Ruleset::Dnd2014);
+    let editions = std::collections::BTreeMap::from([
+        (
+            borealis_content::source_key("Classes 2014/2024"),
+            Ruleset::Dnd2014,
+        ),
+        (borealis_content::source_key("Old Book"), Ruleset::Any),
+    ]);
+    let store = ContentStoreBuilder::new()
+        .add_file("both.json", PackOrigin::Custom, both)
+        .add_file("old.json", PackOrigin::Custom, old)
+        .with_source_editions(editions)
+        .build();
+    let ruleset = |id: &str| store.get(id).unwrap().element.ruleset;
+    for id in ["ID_BB_SOURCE", "ID_BB_CLASS", "ID_BB_HELPER"] {
+        assert_eq!(ruleset(id), Some(Ruleset::Dnd2014), "{id}");
+    }
+    for id in ["ID_OB_SOURCE", "ID_OB_CLASS"] {
+        assert_eq!(ruleset(id), Some(Ruleset::Any), "{id}");
+    }
+}

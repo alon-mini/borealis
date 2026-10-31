@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import type { ContentProgress, ImportPreview, PreviewBook, Ruleset, UnresolvedRef } from "../../api/contract";
+import type { ContentProgress, ImportPreview, BookRuleset, PreviewBook, UnresolvedRef } from "../../api/contract";
 import { Alert, Button, Modal, ProgressBar, useConfirm, useToast } from "../../components";
 import { ComboBox, Expander } from "../../components/controls";
-import { EDITION_OPTIONS } from "./BookEdition";
+import { BOTH_HELP, EDITION_OPTIONS } from "./BookEdition";
 import { useApi } from "../../state/ApiContext";
 import { closeInstallReport, dismissImportPreview, setImportBusy, showInstallReport, useImportPreviewState } from "../../state/importPreview";
 import { errorMessage } from "../../state/useAsync";
@@ -26,15 +26,15 @@ function RefItem({ u }: { u: UnresolvedRef }) {
 }
 
 /** IM14: each book of the import with its rules edition, which the user may change before Install. */
-function BookEditions({ books, chosen, onChange }: { books: PreviewBook[]; chosen: Record<string, Ruleset>; onChange: (name: string, r: Ruleset) => void }) {
+function BookEditions({ books, chosen, onChange }: { books: PreviewBook[]; chosen: Record<string, BookRuleset>; onChange: (name: string, r: BookRuleset) => void }) {
   return (
     <fieldset className="v4-imp-books" aria-label="Books and their rules edition">
       <legend>Rules edition</legend>
-      <p className="muted small">Each book is 2014 or 2024 rules: its &quot;D&amp;D 5.5e&quot; mark says 2024, otherwise it is guessed from the name and date. Change a wrong guess here or later on the Sources page.</p>
+      <p className="muted small">Each book is 2014 rules unless it says otherwise: its &quot;D&amp;D 5.5e&quot; mark, or its name or description saying 2024, makes it 2024; naming both editions makes it Both editions. {BOTH_HELP} Change a wrong guess here or later on the Sources page.</p>
       {books.map((b, i) => (
         <div key={b.name} className="v4-imp-book">
           <label htmlFor={`v4-imp-book-${i}`}>{b.name}</label>
-          <ComboBox id={`v4-imp-book-${i}`} options={EDITION_OPTIONS} value={chosen[b.name] ?? b.edition} onChange={(e) => onChange(b.name, e.target.value as Ruleset)} />
+          <ComboBox id={`v4-imp-book-${i}`} options={EDITION_OPTIONS} value={chosen[b.name] ?? b.edition} onChange={(e) => onChange(b.name, e.target.value as BookRuleset)} />
           {b.setByUser && <span className="muted small">your earlier choice</span>}
         </div>
       ))}
@@ -66,7 +66,7 @@ export function ImportPreviewDialog({ preview }: { preview: ImportPreview }) {
     dismissImportPreview(api);
     navigate("/content");
   };
-  const [editions, setEditions] = useState<Record<string, Ruleset>>({});
+  const [editions, setEditions] = useState<Record<string, BookRuleset>>({});
   const install = async () => {
     setImportBusy(true);
     try {

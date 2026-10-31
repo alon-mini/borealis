@@ -1,4 +1,4 @@
-import type { ElementSummary, ElementType, Ruleset } from "./core";
+import type { BookRuleset, ElementSummary, ElementType, Ruleset } from "./core";
 
 export interface ItemSummary extends ElementSummary {
   category: string;
@@ -128,8 +128,8 @@ export interface ContentSource {
   incomplete?: boolean;
   /** The source's own extra note; empty or absent when it has none. */
   info?: string;
-  /** IM14: the book's edition as loaded (null when its content carries none). */
-  edition: Ruleset | null;
+  /** IM14: the book's edition as loaded (null when its content carries none; `any` = Both editions, IM17). */
+  edition: BookRuleset | null;
   /** The edition is the user's choice (Sources page or import preview), not the importer's guess. */
   editionSetByUser: boolean;
   /** An imported book: its edition can be set. Bundled books are fixed. */

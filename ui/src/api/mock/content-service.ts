@@ -1,5 +1,5 @@
 import type {
-  CompendiumFacets, FiveToolsImportReport, FiveToolsImportRequest, FiveToolsScan, CompendiumQuery, ContentIndex, ContentPack, ContentProgress, ContentSource, ElementDetail, ElementSummary,
+  BookRuleset, CompendiumFacets, FiveToolsImportReport, FiveToolsImportRequest, FiveToolsScan, CompendiumQuery, ContentIndex, ContentPack, ContentProgress, ContentSource, ElementDetail, ElementSummary,
   ImportPackRequest, ImportPackResult, ItemCategory, ItemQuery, ItemSummary, MigrationIssue, MigrationReport, Page, Ruleset, UpdateIndexesResult,
 } from "../types";
 import { issue, scanElements, xmlIssues } from "./import-issues";
@@ -167,7 +167,7 @@ export class ContentService {
   }
 
   /** IM14: set an imported book's edition. */
-  setSourceEdition(sourceId: string, edition: Ruleset): ContentSource[] {
+  setSourceEdition(sourceId: string, edition: BookRuleset): ContentSource[] {
     const source = this.sources().find((s) => s.id === sourceId);
     checkSettable(source?.editionEditable, edition);
     this.editions.set(source!.name, edition);

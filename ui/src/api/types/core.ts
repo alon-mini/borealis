@@ -1,6 +1,8 @@
 /** Core vocabulary shared by every part of the backend contract. */
 
 export type Ruleset = "dnd2014" | "dnd2024";
+/** A book's rules edition (IM14): 2014, 2024, or (IM17) `any`, Both editions: offered to 2014 and 2024 characters. */
+export type BookRuleset = Ruleset | "any";
 
 export const ABILITY_KEYS = ["str", "dex", "con", "int", "wis", "cha"] as const;
 export type AbilityKey = (typeof ABILITY_KEYS)[number];

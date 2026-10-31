@@ -1,7 +1,7 @@
 /** Rules-based content import with a preview (no AI). Mirrors `content_preview.rs`. */
 
 import type { MigrationIssueCode } from "./content";
-import type { Ruleset } from "./core";
+import type { BookRuleset } from "./core";
 
 export interface ImportFileInput {
   fileName: string;
@@ -70,10 +70,10 @@ export interface ImportPreview {
 /** IM14: a book of an import preview. */
 export interface PreviewBook {
   name: string;
-  /** What the importer found: the "D&D 5.5e" marker, else a guess from the name and date. */
-  detected: Ruleset;
-  /** What will apply: the user's stored choice for this book, else `detected`. */
-  edition: Ruleset;
+  /** What the importer found (IM17): the "D&D 5.5e" marker or the book saying 2024, `any` when it names both editions. */
+  detected: BookRuleset;
+  /** What will apply: the user's stored choice for this book, else the installed book's edition, else `detected`. */
+  edition: BookRuleset;
   /** `edition` is a choice the user made earlier. */
   setByUser: boolean;
 }

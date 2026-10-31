@@ -328,6 +328,16 @@ fn apply_source_editions(
         .iter()
         .map(|(k, r)| (k.clone(), (*r, k.clone())))
         .collect();
+    // IM17: books the importer tagged for Both editions (their `Source` element is `any`): their
+    // `any` tags came from the guess, so a set edition re-tags them too
+    let mut guessed_both: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for p in files.iter().filter(|p| custom(p)) {
+        for el in p.file.elements.iter().filter(|e| e.ty == "Source") {
+            if el.ruleset.or(p.file.ruleset) == Some(Ruleset::Any) {
+                guessed_both.insert(super::source_key(&el.name));
+            }
+        }
+    }
     for el in files
         .iter()
         .filter(|p| custom(p))
@@ -369,11 +379,12 @@ fn apply_source_editions(
             .flatten()
             .filter(|b| books.iter().all(|x| x.as_ref() == Some(b)));
         for (ei, el) in pending.file.elements.iter_mut().enumerate() {
-            if el.ruleset.or(file_ruleset) == Some(Ruleset::Any) {
-                continue;
-            }
             let helper = el.ty != "Source" && super::is_unrestrictable_source(&el.source);
             let set = if helper { follow.clone() } else { book_of(el) };
+            let neutral = el.ruleset.or(file_ruleset) == Some(Ruleset::Any);
+            if neutral && !set.as_ref().is_some_and(|(_, b)| guessed_both.contains(b)) {
+                continue;
+            }
             if let Some((r, book)) = set {
                 el.ruleset = Some(r);
                 changed.insert((fi, ei), book);

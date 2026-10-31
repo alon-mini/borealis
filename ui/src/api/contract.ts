@@ -101,6 +101,7 @@ import type {
   SheetPreview,
   StatTrace,
   Ruleset,
+  BookRuleset,
   Unsubscribe,
   UpdateIndexesResult,
   ValidationReport,
@@ -333,7 +334,7 @@ export interface ApiMethods {
   /** Convert files or a picked folder without installing; `installImportPreview` then installs exactly that result. */
   previewImportPack(args: { request: PreviewImportRequest }): Promise<ImportPreview>;
   /** `editions` (IM14): the edition the user chose for books of the set, by book name; stored as each book's choice. */
-  installImportPreview(args: { previewId: string; editions?: Record<string, Ruleset> | null }): Promise<ImportPackResult>;
+  installImportPreview(args: { previewId: string; editions?: Record<string, BookRuleset> | null }): Promise<ImportPackResult>;
   cancelImportPreview(args: { previewId: string }): Promise<void>;
   /** Files the OS opened with the app (macOS/iOS/Android "open with" / share), oldest first. */
   takeOpenedFiles(): Promise<OpenedFile[]>;
@@ -342,7 +343,7 @@ export interface ApiMethods {
   listSources(): Promise<ContentSource[]>;
   /** IM14: set an imported book's edition (2014 or 2024) and reload content. Characters already using the book keep its
    * content; new picks follow the edition. Refuses bundled books (`invalid_argument`) and unknown ones (`not_found`). */
-  setSourceEdition(args: { sourceId: string; edition: Ruleset }): Promise<ContentSource[]>;
+  setSourceEdition(args: { sourceId: string; edition: BookRuleset }): Promise<ContentSource[]>;
   listIndexes(): Promise<ContentIndex[]>;
   addIndex(args: { url: string }): Promise<ContentIndex[]>;
   removeIndex(args: { url: string }): Promise<ContentIndex[]>;

@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
+/// IM17: the stored value of a book set to Both editions.
+const BOTH_EDITIONS: &str = "both";
+
 /// A user-added update index (no defaults are ever shipped).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -48,7 +51,7 @@ pub struct ContentPrefs {
     /// 5etools data folders imported from an address the user pasted.
     pub fivetools_urls: Vec<FiveToolsUrlRecord>,
     /// IM14 (GitHub #11): the edition the user set for an imported book, by
-    /// [`borealis_content::source_key`] of its name: `"dnd2014"` or `"dnd2024"`. Applied when
+    /// [`borealis_content::source_key`] of its name: `"dnd2014"`, `"dnd2024"` or `"both"` (IM17). Applied when
     /// content loads; the imported files are never rewritten. Any JSON value is accepted, so a
     /// value of another shape a newer app writes never makes this file unreadable: it is ignored
     /// ([`Self::source_editions`]) and kept.
@@ -90,16 +93,22 @@ impl ContentPrefs {
             .filter_map(|(k, v)| match v.as_str() {
                 Some("dnd2014") => Some((k.clone(), borealis_content::Ruleset::Dnd2014)),
                 Some("dnd2024") => Some((k.clone(), borealis_content::Ruleset::Dnd2024)),
+                Some(BOTH_EDITIONS) => Some((k.clone(), borealis_content::Ruleset::Any)),
                 _ => None,
             })
             .collect()
     }
 
-    /// Set a book's edition (`Dnd2014` or `Dnd2024`) by its name.
+    /// Set a book's edition by its name: `Dnd2014`, `Dnd2024` or `Any` (Both editions, IM17,
+    /// stored as `"both"`).
     pub fn set_source_edition(&mut self, book: &str, edition: borealis_content::Ruleset) {
+        let value = match edition {
+            borealis_content::Ruleset::Any => BOTH_EDITIONS,
+            other => other.as_str(),
+        };
         self.source_editions.insert(
             borealis_content::source_key(book),
-            serde_json::Value::String(edition.as_str().to_string()),
+            serde_json::Value::String(value.to_string()),
         );
     }
 

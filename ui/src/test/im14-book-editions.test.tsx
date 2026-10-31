@@ -5,9 +5,9 @@ import { MockApi } from "../api/mock";
 import { closeImportPreview } from "../state/importPreview";
 import { renderApp } from "./utils";
 
-// GitHub #11 (decision IM14): the user sets each imported book's edition (2014 or 2024) on the Sources page and in the
-// import preview. The preview pre-fills the "D&D 5.5e" marker, else a guess from the name and date; only books the user
-// changes are sent. Bundled books keep their edition.
+// GitHub #11 (decision IM14, guess per IM17): the user sets each imported book's edition on the Sources page and in the
+// import preview. The preview pre-fills the "D&D 5.5e" marker or what the book says (never its date, IM17); only books
+// the user changes are sent. Bundled books keep their edition.
 const mock = () => new MockApi({ aiChunkDelayMs: 1, rng: () => 0.5 });
 const source = (name: string, setters: string) =>
   `<element name="${name}" type="Source" source="Core" id="ID_${name.length}_SOURCE"><setters>${setters}</setters></element>`;
@@ -24,7 +24,7 @@ describe("IM14 Sources page", () => {
     await user.click(within(grid).getByText("Sample Expansion", { selector: ".nm" }));
     const edition = await screen.findByRole("combobox", { name: "Rules edition of this book" });
     expect((edition as HTMLSelectElement).value).toBe("dnd2024");
-    expect(screen.getByText(/Found in the book, or guessed from its name and date\./)).toBeTruthy();
+    expect(screen.getByText(/Found in the book: its .D&D 5\.5e. mark, or its name or description\./)).toBeTruthy();
     await user.selectOptions(edition, "dnd2014");
     await waitFor(() => expect(set).toHaveBeenCalledWith({ sourceId: expect.any(String), edition: "dnd2014" }));
     expect(await screen.findByText(/Set by you\./)).toBeTruthy();
@@ -52,7 +52,7 @@ describe("IM14 import preview", () => {
     renderApp("/content", { api });
     await screen.findByRole("button", { name: "Import files" });
     fireEvent.change(screen.getByLabelText("Choose content files"), { target: { files: [
-      new File([book("Grim Test: Player's Guide (2025)", "<set name=\"third-party\">true</set><set name=\"release\">20250115</set>", "GT")], "grim.xml"),
+      new File([book("Grim Test: Player's Guide (2025)", "<set name=\"third-party\">true</set><set name=\"information\">D&amp;D 5.5e</set>", "GT")], "grim.xml"),
       new File([book("Old Test Homebrew", "<set name=\"release\">20230101</set>", "OT")], "old.xml"),
     ] } });
     const dialog = await screen.findByRole("dialog", { name: /Import preview/ });
@@ -60,7 +60,7 @@ describe("IM14 import preview", () => {
     const grim = within(books).getByRole("combobox", { name: "Grim Test: Player's Guide (2025)" }) as HTMLSelectElement;
     const old = within(books).getByRole("combobox", { name: "Old Test Homebrew" }) as HTMLSelectElement;
     expect([grim.value, old.value]).toEqual(["dnd2024", "dnd2014"]);
-    expect(books.textContent).toContain("guessed from the name and date");
+    expect(books.textContent).toContain("its name or description saying 2024");
     await user.selectOptions(old, "dnd2024");
     await user.click(within(dialog).getByRole("button", { name: "Install" }));
     await waitFor(() => expect(install).toHaveBeenCalledWith({ previewId: expect.any(String), editions: { "Old Test Homebrew": "dnd2024" } }));

@@ -1,7 +1,8 @@
-//! IM14 (GitHub #11): the edition (2014 or 2024) of each imported book.
+//! IM14 (GitHub #11): the edition (2014, 2024 or, IM17, Both editions) of each imported book.
 //!
-//! The importer guesses it (`borealis_migrate::edition`: the `D&D 5.5e` marker, then the name and
-//! date). The user can set it on the Sources page or in the import preview; the choice is a
+//! The importer guesses it (`borealis_migrate::edition`, IM17: the `D&D 5.5e` marker, or the
+//! book's own name or description saying 2024 or naming both editions; never its date). The user
+//! can set it on the Sources page or in the import preview; the choice is a
 //! content preference keyed by the book's name ([`borealis_content::source_key`]) and applied when
 //! content loads ([`borealis_content::ContentStoreBuilder::with_source_editions`]), so it survives
 //! re-import and restart and never rewrites the imported files. A character that already holds
@@ -35,7 +36,7 @@ pub(crate) fn pack_content_files(dir: &Path) -> Vec<ContentFile> {
 }
 
 /// The books (`Source` elements) of the pack in `dir` with the edition the importer wrote for
-/// each (no edition or `any` reads as 2014), in file order, each name once.
+/// each (`any` is Both editions, no edition reads as 2014), in file order, each name once.
 pub(crate) fn pack_books(dir: &Path) -> Vec<(String, Ruleset)> {
     let mut out: Vec<(String, Ruleset)> = Vec::new();
     for file in pack_content_files(dir) {
@@ -48,6 +49,7 @@ pub(crate) fn pack_books(dir: &Path) -> Vec<(String, Ruleset)> {
             }
             let edition = match el.ruleset.or(file.ruleset) {
                 Some(Ruleset::Dnd2024) => Ruleset::Dnd2024,
+                Some(Ruleset::Any) => Ruleset::Any,
                 _ => Ruleset::Dnd2014,
             };
             out.push((el.name.clone(), edition));
@@ -84,21 +86,12 @@ pub(crate) fn preview_books(
         .collect()
 }
 
-/// Only the two editions a book can have.
-fn check_edition(edition: Ruleset) -> ApiResult<()> {
-    if edition == Ruleset::Any {
-        return Err(ApiError::invalid("A book is either 2014 or 2024 rules."));
-    }
-    Ok(())
-}
-
 /// The user's editions for books of a preview: every name must be one of `books`.
 pub(crate) fn check_preview_editions(
     books: &[PreviewBook],
     editions: &BTreeMap<String, Ruleset>,
 ) -> ApiResult<()> {
-    for (name, edition) in editions {
-        check_edition(*edition)?;
+    for name in editions.keys() {
         if !books
             .iter()
             .any(|b| source_key(&b.name) == source_key(name))
@@ -144,33 +137,38 @@ pub(crate) fn keep_installed_editions(
 }
 
 /// A book's edition as loaded: its first element with an edition (`null` when none has one).
+/// `any` counts only for an imported book whose elements carry no other edition (Both editions,
+/// IM17); a bundled book's edition-neutral elements carry no edition.
 pub(crate) fn loaded_edition<'a>(
     elements: impl Iterator<Item = &'a borealis_content::StoredElement>,
 ) -> (Option<Ruleset>, bool) {
     let mut edition = None;
+    let mut any = false;
     let mut imported = false;
     for e in elements {
         imported |= e.origin == PackOrigin::Custom;
+        any |= e.element.ruleset == Some(Ruleset::Any);
         if edition.is_none() {
             edition = e.element.ruleset.filter(|r| *r != Ruleset::Any);
         }
     }
-    (edition, imported)
+    let both = (edition.is_none() && any && imported).then_some(Ruleset::Any);
+    (edition.or(both), imported)
 }
 
 impl AppState {
-    /// IM14: set an imported book's edition (Sources page) and hot-reload. Characters that already
-    /// use the book keep its content; new picks follow the new edition.
+    /// IM14: set an imported book's edition (Sources page): 2014, 2024 or `any` (Both editions,
+    /// IM17), and hot-reload. Characters that already use the book keep its content; new picks
+    /// follow the new edition.
     ///
     /// # Errors
-    /// `invalid_argument` for `any` or a bundled book; `not_found` for an unknown book.
+    /// `invalid_argument` for a bundled book; `not_found` for an unknown book.
     pub fn set_source_edition(
         &self,
         source_id: &str,
         edition: Ruleset,
         sink: &dyn EventSink,
     ) -> ApiResult<Vec<ContentSource>> {
-        check_edition(edition)?;
         let _guard = self.content_lock()?;
         let source = self
             .list_sources()?

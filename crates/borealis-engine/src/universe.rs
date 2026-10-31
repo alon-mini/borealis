@@ -221,6 +221,8 @@ pub struct UElem {
     /// that was a race, in a 2014 character). The foreign options of its own selects are
     /// accepted with it (`Graph::inherits_owner_acceptance`).
     pub legacy_accepted: bool,
+    /// IM17: an imported element for Both editions (`any`): never superseded.
+    pub both_editions: bool,
     /// IM14: its book's edition is the user's choice (Sources page): that book's key. A
     /// character that already holds it keeps it whatever the edition; new picks follow the
     /// edition (R4).
@@ -268,6 +270,7 @@ impl UElem {
             replaced_supports: Vec::new(),
             toggle_effects,
             legacy_accepted: false,
+            both_editions: false,
             user_edition_book: None,
         }
     }
@@ -746,6 +749,8 @@ impl Universe {
             let legacy = legacy_alias_accepted(&stored.element, profile).is_some();
             let mut u = UElem::build(el, 0, false, edition, supports);
             u.legacy_accepted = legacy && u.edition.is_accepted();
+            u.both_editions = stored.origin == borealis_content::PackOrigin::Custom
+                && stored.element.ruleset == Some(Ruleset::Any);
             u.user_edition_book.clone_from(&stored.user_edition_book);
             uni.push(u);
         }
@@ -790,7 +795,9 @@ impl Universe {
     }
 
     /// Elements that an element authored for this universe's ruleset replaces one to one
-    /// (`maps_to` kind `equivalent`) are hidden from new picks.
+    /// (`maps_to` kind `equivalent`) are hidden from new picks. An element of an imported book
+    /// for Both editions (IM17) is not another edition's, so nothing replaces it (a bundled `any`
+    /// element, such as a core language, is still replaced by its 2024 version).
     fn mark_superseded(&mut self) {
         let ruleset = self.ruleset;
         let replaced: std::collections::HashSet<String> = self
@@ -803,7 +810,8 @@ impl Universe {
             .flatten()
             .collect();
         for u in &mut self.elems {
-            u.superseded = u.el.ruleset != Some(ruleset) && replaced.contains(&u.el.id);
+            u.superseded =
+                u.el.ruleset != Some(ruleset) && !u.both_editions && replaced.contains(&u.el.id);
         }
     }
 

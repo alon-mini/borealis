@@ -1,4 +1,4 @@
-import type { Api, ApiEvents, EventName, Ruleset, SlotOption, SlotOptionsArgs, SwitchVersionResult } from "../contract";
+import type { Api, ApiEvents, BookRuleset, EventName, Ruleset, SlotOption, SlotOptionsArgs, SwitchVersionResult } from "../contract";
 import type {
   AiHostStatus,
   LinkDevice,
@@ -591,7 +591,7 @@ export class MockApi implements Api {
     const folder = request.folder ? { name: this.picks.resolve(request.folder, "content-folder").split("/").pop() ?? "content", files: this.folderFiles } : null;
     return this.previews.preview(request, folder, this.content.editions);
   }
-  async installImportPreview({ previewId, editions }: { previewId: string; editions?: Record<string, Ruleset> | null }) {
+  async installImportPreview({ previewId, editions }: { previewId: string; editions?: Record<string, BookRuleset> | null }) {
     await this.tick();
     const { preview, texts } = this.previews.take(previewId, editions);
     for (const [book, edition] of Object.entries(editions ?? {})) this.content.editions.set(book, edition);
@@ -606,7 +606,7 @@ export class MockApi implements Api {
   async setPackEnabled(a: { packId: string; enabled: boolean }) { await this.tick(); return this.content.setEnabled(a.packId, a.enabled); }
   async removePack({ packId }: { packId: string }) { await this.tick(); return this.content.remove(packId); }
   async listSources() { await this.tick(); return this.content.sources(); }
-  async setSourceEdition(a: { sourceId: string; edition: Ruleset }) { await this.tick(); return this.content.setSourceEdition(a.sourceId, a.edition); }
+  async setSourceEdition(a: { sourceId: string; edition: BookRuleset }) { await this.tick(); return this.content.setSourceEdition(a.sourceId, a.edition); }
   async listIndexes() { await this.tick(); return this.content.listIndexes(); }
   async addIndex({ url }: { url: string }) { await this.tick(); return this.content.addIndex(url); }
   async removeIndex({ url }: { url: string }) { await this.tick(); return this.content.removeIndex(url); }

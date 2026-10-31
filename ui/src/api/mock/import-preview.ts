@@ -1,7 +1,7 @@
-import type { ImportFileInput, ImportPackResult, ImportPreview, PreviewDiagnostic, PreviewImportRequest, Ruleset, UnresolvedRef } from "../types";
+import type { ImportFileInput, ImportPackResult, ImportPreview, PreviewDiagnostic, PreviewImportRequest, BookRuleset, UnresolvedRef } from "../types";
 import { apiError } from "./errors";
 import { issue, scanElements, xmlIssues } from "./import-issues";
-import { type MockBookEditions, bookKey } from "./book-editions";
+import { type MockBookEditions, bookKey, isBookRuleset } from "./book-editions";
 
 /** Ids the mock treats as already installed (the real backend checks the loaded content store). */
 const INSTALLED = /^ID_(PHB|WOTC|INTERNAL)_/;
@@ -85,11 +85,11 @@ export class MockImportPreview {
     return preview;
   }
 
-  take(previewId: string, editions?: Record<string, Ruleset> | null): Staged {
+  take(previewId: string, editions?: Record<string, BookRuleset> | null): Staged {
     const s = this.staged.get(previewId);
     if (!s) throw apiError("invalid_argument", "This preview has expired. Choose the files again.");
     for (const [name, edition] of Object.entries(editions ?? {})) {
-      if (edition !== "dnd2014" && edition !== "dnd2024") throw apiError("invalid_argument", "A book is either 2014 or 2024 rules.");
+      if (!isBookRuleset(edition)) throw apiError("invalid_argument", "A book is 2014 rules, 2024 rules or Both editions.");
       if (!s.preview.books.some((b) => bookKey(b.name) === bookKey(name))) throw apiError("invalid_argument", `"${name}" is not a book of this import.`);
     }
     this.staged.delete(previewId);

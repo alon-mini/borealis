@@ -59,11 +59,13 @@ fn walk(dir: &Path) -> Vec<PathBuf> {
 }
 
 #[test]
-fn an_unmarked_2025_book_is_guessed_2024_and_its_class_is_offered_to_2024_characters() {
+fn a_marked_book_is_2024_and_its_class_is_offered_to_2024_characters() {
     let app = App::new();
+    // IM17: the marker (or the book saying 2024) makes it 2024; its 2025 date alone does not
+    // (book_edition_both.rs)
     let report = app.import(
         "grim.xml",
-        &book(GRIM, "GTPG25", "Gravecaller", "20250115", false),
+        &book(GRIM, "GTPG25", "Gravecaller", "20250115", true),
     );
     // IM15: the three supports parse; only the requirements naming an element stay a warning
     let invalid: Vec<String> = report["issues"]
@@ -162,12 +164,7 @@ fn the_user_sets_a_books_edition_and_it_survives_restart_and_reimport_without_re
     assert_eq!(app.source(OLD)["edition"], "dnd2024");
     assert_eq!(app.source(OLD)["editionSetByUser"], true);
 
-    // only 2014 or 2024, only imported books
-    let err = app
-        .state
-        .set_source_edition(OLD, Ruleset::Any, &NullSink)
-        .unwrap_err();
-    assert_eq!(err.code, ErrorCode::InvalidArgument);
+    // only imported books (Both editions is a valid choice since IM17)
     let err = app
         .state
         .set_source_edition("SRD 5.1", Ruleset::Dnd2024, &NullSink)
@@ -289,15 +286,15 @@ fn the_import_preview_lists_each_books_edition_and_installs_the_chosen_ones() {
     assert_eq!(
         v["books"],
         json!([
-            {"name": GRIM, "detected": "dnd2024", "edition": "dnd2024", "setByUser": false},
+            {"name": GRIM, "detected": "dnd2014", "edition": "dnd2014", "setByUser": false},
             {"name": "Marked Test Guide", "detected": "dnd2024", "edition": "dnd2024", "setByUser": false}
         ])
     );
-    let chosen = BTreeMap::from([(GRIM.to_string(), Ruleset::Dnd2014)]);
+    let chosen = BTreeMap::from([(GRIM.to_string(), Ruleset::Dnd2024)]);
     app.state
         .install_import_preview(&preview.preview_id, Some(&chosen), &NullSink)
         .expect("install");
-    assert_eq!(app.source(GRIM)["edition"], "dnd2014");
+    assert_eq!(app.source(GRIM)["edition"], "dnd2024");
     assert_eq!(app.source(GRIM)["editionSetByUser"], true);
     assert_eq!(app.source("Marked Test Guide")["edition"], "dnd2024");
     // a book that is not in the preview is refused
@@ -328,10 +325,10 @@ fn reimporting_never_flips_an_installed_books_edition_silently() {
     );
     assert_eq!(app.source(OLD)["edition"], "dnd2014");
     let s14 = app.pick_class(&app.hero(Ruleset::Dnd2014), "ID_OTH_CLASS");
-    // the same pack again, now dated 2025: guessed 2024, but the installed book is kept 2014
+    // the same pack again, now marked D&D 5.5e: detected 2024, but the installed book is kept 2014
     app.import(
         "shifting.xml",
-        &book(OLD, "OTH", "Oldcaller", "20250101", false),
+        &book(OLD, "OTH", "Oldcaller", "20230101", true),
     );
     let src = app.source(OLD);
     assert_eq!(src["edition"], "dnd2014", "{src}");
@@ -404,7 +401,7 @@ fn the_preview_shows_the_installed_edition_and_installs_what_it_shows() {
     let p = preview_of(
         &app,
         "shifting.xml",
-        &book(OLD, "OTH", "Oldcaller", "20250101", false),
+        &book(OLD, "OTH", "Oldcaller", "20230101", true),
     );
     let v = serde_json::to_value(&p.books).unwrap();
     assert_eq!(
@@ -419,7 +416,7 @@ fn the_preview_shows_the_installed_edition_and_installs_what_it_shows() {
     let p = preview_of(
         &app,
         "shifting.xml",
-        &book(OLD, "OTH", "Oldcaller", "20250101", false),
+        &book(OLD, "OTH", "Oldcaller", "20230101", true),
     );
     let chosen = BTreeMap::from([(OLD.to_string(), Ruleset::Dnd2024)]);
     app.state
@@ -450,7 +447,7 @@ fn reimporting_a_disabled_pack_keeps_its_books_edition() {
         .expect("switch off");
     app.import(
         "shifting.xml",
-        &book(OLD, "OTH", "Oldcaller", "20250101", false),
+        &book(OLD, "OTH", "Oldcaller", "20230101", true),
     );
     assert_eq!(app.source(OLD)["edition"], "dnd2014");
     assert_eq!(stored_editions(&app)["old test homebrew"], "dnd2014");

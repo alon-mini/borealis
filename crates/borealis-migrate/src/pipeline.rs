@@ -439,7 +439,7 @@ pub fn migrate_path(input: &Path, opts: &MigrateOptions) -> Result<MigrateOutput
     }
 
     normalise_ids(&mut run)?;
-    let tagged = crate::edition::tag_2024(&mut run.converted, opts.ruleset);
+    let tagged = crate::edition::tag_editions(&mut run.converted, opts.ruleset);
     reserialise(&mut run, tagged)?;
     if opts.validate {
         validate_output(&mut run)?;
