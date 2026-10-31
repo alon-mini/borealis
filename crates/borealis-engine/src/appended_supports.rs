@@ -8,15 +8,18 @@
 //! version. The superseded element keeps its tags, so a stored pick of it still replays. Nothing
 //! changes in a 2014 universe, and stored character data is untouched (R4).
 //!
-//! IM16: the superseded elements' own tags are also recorded on the native element
-//! (`UElem::replaced_supports`), as a second tag set its supports matching falls back on, so a
-//! 2014 select naming a tag only the 2014 version carries (`Starting` languages) offers the 2024
-//! version. They are not added to its own tags, so nothing else reads them.
+//! IM16: the superseded elements' own tags that no native element of the type carries are also
+//! recorded on the native element (`UElem::replaced_supports`, with the replaced ids in
+//! `UElem::replaced_ids`), as a second tag set its supports matching falls back on, so a 2014
+//! select naming a tag only the 2014 versions carry (`Starting` languages) offers the 2024
+//! version. A tag native elements carry (a class list such as `Warlock`, a spell level, a school)
+//! is left out: the 2024 content answers it itself, and carrying the 2014 one across would widen
+//! native 2024 lists to their 2014 contents (second review H1). Nothing else reads the set.
 
 use crate::ids;
 use crate::universe::UElem;
 use borealis_content::{ContentStore, MapKind, Ruleset};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Add to each native 2024 element the supports that appends put on the superseded elements it
 /// is `equivalent` to (same type), plus the names of the `ID_` support tags among them.
@@ -34,20 +37,45 @@ pub(crate) fn share(
         .enumerate()
         .map(|(i, u)| (u.el.id.as_str(), i))
         .collect();
-    let additions: Vec<(usize, Vec<String>, Vec<String>)> = elems
+    let native = native_tags(elems, ruleset);
+    let additions: Vec<(usize, Vec<String>, Replaced)> = elems
         .iter()
         .enumerate()
         .filter(|(_, u)| u.el.ruleset == Some(ruleset))
         .filter_map(|(i, u)| {
             let tags = appended_onto_superseded(u, elems, &pos, store, support_names);
-            let replaced = superseded_tags(u, elems, &pos);
-            (!tags.is_empty() || !replaced.is_empty()).then_some((i, tags, replaced))
+            let replaced = superseded_tags(u, elems, &pos, &native);
+            (!tags.is_empty() || !replaced.ids.is_empty()).then_some((i, tags, replaced))
         })
         .collect();
     for (i, tags, replaced) in additions {
         elems[i].supports.extend(tags);
-        elems[i].replaced_supports = replaced;
+        elems[i].replaced_supports = replaced.tags;
+        elems[i].replaced_ids = replaced.ids;
     }
+}
+
+/// IM16: what a native element stands in for: the replaced elements' ids and their tags that no
+/// native element of the type carries.
+#[derive(Default)]
+struct Replaced {
+    ids: Vec<String>,
+    tags: Vec<String>,
+}
+
+/// Per type, every tag an element offered natively in this universe carries (its own edition or
+/// edition-neutral, not superseded).
+fn native_tags(elems: &[UElem], ruleset: Ruleset) -> HashMap<&str, HashSet<&str>> {
+    let mut out: HashMap<&str, HashSet<&str>> = HashMap::new();
+    for u in elems
+        .iter()
+        .filter(|u| !u.superseded && u.el.ruleset.is_none_or(|r| r.compatible_with(ruleset)))
+    {
+        out.entry(u.el.ty.as_str())
+            .or_default()
+            .extend(u.supports.iter().map(String::as_str));
+    }
+    out
 }
 
 /// The superseded counterparts of native `u` (`maps_to` kind `equivalent`, same type).
@@ -67,13 +95,22 @@ fn superseded_counterparts<'a>(
         .filter(move |c| c.superseded && c.el.ty == u.el.ty)
 }
 
-/// IM16: every tag of the superseded counterparts of native `u` (empty when it replaces none).
-fn superseded_tags(u: &UElem, elems: &[UElem], pos: &HashMap<&str, usize>) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
+/// IM16: the superseded counterparts of native `u` (empty when it replaces none): their ids, and
+/// their tags that no native element of the type carries.
+fn superseded_tags(
+    u: &UElem,
+    elems: &[UElem],
+    pos: &HashMap<&str, usize>,
+    native: &HashMap<&str, HashSet<&str>>,
+) -> Replaced {
+    let own = native.get(u.el.ty.as_str());
+    let mut out = Replaced::default();
     for c in superseded_counterparts(u, elems, pos) {
+        out.ids.push(c.el.id.clone());
         for t in &c.supports {
-            if !out.contains(t) {
-                out.push(t.clone());
+            let carried = own.is_some_and(|n| n.contains(t.as_str()));
+            if !carried && !out.tags.contains(t) {
+                out.tags.push(t.clone());
             }
         }
     }

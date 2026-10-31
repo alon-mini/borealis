@@ -215,6 +215,9 @@ pub struct UElem {
     /// `equivalent`, 2024 universe only). A supports expression the element's own tags do not
     /// match is matched against these too ([`crate::eval::supports_match`]).
     pub replaced_supports: Vec<String>,
+    /// IM16: the ids of the 2014 elements this native element replaces; an `ID_` term of the
+    /// fallback matching names them.
+    pub replaced_ids: Vec<String>,
     /// Stat rules of each `toggle` rule, applied only while the toggle is on.
     pub toggle_effects: Vec<crate::play_rules::ToggleEffects>,
     /// Foreign element the profile accepts only as its `legacy_alias` type (a 2024 species
@@ -268,6 +271,7 @@ impl UElem {
             repeatable,
             superseded: false,
             replaced_supports: Vec::new(),
+            replaced_ids: Vec::new(),
             toggle_effects,
             legacy_accepted: false,
             both_editions: false,

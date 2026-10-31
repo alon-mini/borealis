@@ -397,8 +397,9 @@ impl DynamicSupports for NoDynamics {
 /// (`Artisan tools||ID_..._NAVIGATORS_TOOLS`).
 ///
 /// IM16: a native 2024 element that replaces 2014 elements also matches when the expression
-/// matches their tags ([`UElem::replaced_supports`]; the whole expression against those tags,
-/// never a mix of the two sets).
+/// matches what it stands in for: their ids ([`UElem::replaced_ids`]) and their tags that no
+/// native element carries ([`UElem::replaced_supports`]); the whole expression against that set,
+/// never a mix with its own tags.
 #[must_use]
 pub fn supports_match(
     expr: &SupportsExpr,
@@ -418,9 +419,12 @@ pub fn supports_match(
         SupportsLeaf::Dynamic(d) => dynamics.matches(d, element),
     });
     own || (!range
-        && !element.replaced_supports.is_empty()
+        && !element.replaced_ids.is_empty()
         && eval_bool(expr.root(), &|leaf| match leaf {
-            SupportsLeaf::Tag(t) => element.replaced_supports.iter().any(|s| same_tag(s, t)),
+            SupportsLeaf::Tag(t) => {
+                element.replaced_ids.iter().any(|id| id == t)
+                    || element.replaced_supports.iter().any(|s| same_tag(s, t))
+            }
             SupportsLeaf::Dynamic(d) => dynamics.matches(d, element),
         }))
 }
@@ -794,6 +798,7 @@ mod tests {
             repeatable: false,
             superseded: false,
             replaced_supports: Vec::new(),
+            replaced_ids: Vec::new(),
             toggle_effects: Vec::new(),
             legacy_accepted: false,
             both_editions: false,

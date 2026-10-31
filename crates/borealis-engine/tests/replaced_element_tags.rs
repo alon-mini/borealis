@@ -107,3 +107,109 @@ fn a_tag_no_element_carries_still_offers_nothing() {
     let snap = e.derive(&half_folk(&e, Ruleset::Dnd2024));
     assert!(slot(&snap, MISSING).options.is_empty());
 }
+
+/// Second review H1: the fallback only carries tags no native 2024 element of the type has. A
+/// class spell-list tag such as `Warlock` is a native tag, so a native 2024 Warlock's list (and its
+/// Mystic Arcanum) does not widen to the 2014 Warlock list through the 2014 counterparts of 2024
+/// spells. Bundled core + SRD 5.1 + SRD 5.2.1, as every user has them.
+fn bundled() -> Engine {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
+    let store = ContentStoreBuilder::new()
+        .add_pack_dir(&root.join("core"))
+        .and_then(|b| b.add_pack_dir(&root.join("srd-5.1")))
+        .and_then(|b| b.add_pack_dir(&root.join("srd-5.2.1")))
+        .expect("bundled packs")
+        .build();
+    Engine::new(&store)
+}
+
+#[test]
+fn a_native_2024_warlock_list_does_not_widen_to_the_2014_list() {
+    let e = bundled();
+    let s = commands::new_character(&e, Ruleset::Dnd2024);
+    let key = commands::slot_key(&e.derive(&s), "ID_LEVEL_1", "Class", 1).expect("class slot");
+    let mut s = commands::select(
+        &e,
+        &s,
+        &key,
+        Choice::Element("ID_2024_CLASS_WARLOCK".into()),
+    )
+    .expect("2024 warlock")
+    .state;
+    while s.level() < 11 {
+        s = commands::level_up_main(&e, &s, None)
+            .expect("level up")
+            .state;
+    }
+    let snap = e.derive(&s);
+    let warlock = snap.caster("Warlock").expect("warlock spellcasting");
+    let listed: Vec<&str> = warlock.spells.iter().map(|x| x.id.as_str()).collect();
+    assert!(
+        !listed.contains(&"ID_2024_SPELL_SHATTER"),
+        "Shatter is not on the 2024 Warlock list"
+    );
+    let arcanum: Vec<&str> = snap
+        .slot(
+            "ID_2024_CLASS_FEATURE_WARLOCK_MYSTIC_ARCANUM",
+            "Mystic Arcanum (level 6)",
+        )
+        .expect("arcanum slot")
+        .options
+        .iter()
+        .map(|o| o.id.as_str())
+        .collect();
+    for not_warlock in [
+        "ID_2024_SPELL_CONJURE_FEY",
+        "ID_2024_SPELL_FLESH_TO_STONE",
+        "ID_2024_SPELL_MASS_SUGGESTION",
+    ] {
+        assert!(
+            !arcanum.contains(&not_warlock),
+            "{not_warlock} in {arcanum:?}"
+        );
+    }
+    assert!(
+        !arcanum.is_empty(),
+        "the 2024 list's level 6 spells are offered"
+    );
+}
+
+/// Second review H1: an `ID_` term of the expression names the replaced 2014 element in the
+/// fallback too, so `!ID_<2014>` also excludes its 2024 replacement.
+#[test]
+fn an_id_exclusion_of_the_2014_element_excludes_its_2024_replacement() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
+    let file: ContentFile = serde_json::from_value(json!({
+        "format": "borealis-content/1",
+        "elements": [
+            {"id": RACE, "name": "Half Folk", "type": "Race", "source": "Test Book", "rules": [
+                {"kind": "select", "type": "Language", "name": STARTING, "supports": format!("Starting,!{OLD}"), "level": 1}]},
+            {"id": OLD, "name": "Old Tongue", "type": "Language", "source": "Test Book",
+             "ruleset": "dnd2014", "supports": ["Standard", "Starting"]},
+            {"id": NEW, "name": "Old Tongue", "type": "Language", "source": "Test Book 2024",
+             "ruleset": "dnd2024", "supports": ["Standard"],
+             "maps_to": {"dnd2014": OLD, "kind": "equivalent"}},
+            {"id": "ID_T_OTHER_14", "name": "Other Tongue", "type": "Language", "source": "Test Book",
+             "ruleset": "dnd2014", "supports": ["Standard", "Starting"]},
+            {"id": "ID_T_OTHER_24", "name": "Other Tongue", "type": "Language", "source": "Test Book 2024",
+             "ruleset": "dnd2024", "supports": ["Standard"],
+             "maps_to": {"dnd2014": "ID_T_OTHER_14", "kind": "equivalent"}}
+        ]}))
+    .expect("synthetic content");
+    let store = ContentStoreBuilder::new()
+        .add_pack_dir(&root.join("core"))
+        .and_then(|b| b.add_pack_dir(&root.join("srd-5.2.1")))
+        .expect("bundled packs")
+        .add_file("half.json", PackOrigin::Custom, file)
+        .build();
+    let e = Engine::new(&store);
+    let snap = e.derive(&half_folk(&e, Ruleset::Dnd2024));
+    assert!(
+        offers(&snap, STARTING, "ID_T_OTHER_24"),
+        "the other tongue answers Starting"
+    );
+    assert!(
+        !offers(&snap, STARTING, NEW),
+        "`!{OLD}` excludes its 2024 replacement"
+    );
+}
