@@ -1,7 +1,7 @@
 //! IM17: a book for Both editions (`any`) is offered to 2014 and 2024 characters alike and is not
 //! "another edition" for either (R4); a 2014-only and a 2024-only book still stay out of the other
-//! edition. A Both book's element is never superseded by a 2024 equivalent (it is not a 2014
-//! element), so a 2024 character still gets it. Bundled core + SRD packs plus three small books.
+//! edition. A native 2024 element that maps to a Both element replaces it for 2024 characters, as
+//! it would a 2014 element (second review M1). Bundled core + SRD packs plus three small books.
 
 use borealis_content::{ContentFile, ContentStoreBuilder, PackOrigin, Ruleset};
 use borealis_engine::commands;
@@ -26,7 +26,9 @@ fn engine() -> Engine {
     let file: ContentFile = serde_json::from_value(json!({
     "format": "borealis-content/1",
     "elements": [
-        class(BOTH, "Both Walker", "Both Book", "any"),
+        {"id": BOTH, "name": "Both Walker", "type": "Class", "source": "Both Book", "ruleset": "any",
+         "setters": [{"name": "hd", "value": "d8"}],
+         "rules": [{"kind": "select", "type": "Feat", "name": "Walker's Gift", "supports": "T Gift", "level": 1}]},
         class(OLD, "Old Walker", "Old Book", "dnd2014"),
         class(NEW, "New Walker", "New Book", "dnd2024"),
         {"id": BOTH_FEAT, "name": "Walker's Gift", "type": "Feat", "source": "Both Book",
@@ -81,20 +83,48 @@ fn a_both_editions_class_is_not_another_edition_for_either() {
     }
 }
 
-/// A 2024 element that maps to a Both element does not supersede it: the Both element is not a
-/// 2014 element.
+/// Second review M1: a native 2024 element that maps to a Both element as its 2014 equivalent
+/// supersedes it in the 2024 universe, as it would a 2014 element: a 2024 character sees one
+/// "Walker's Gift", the 2024 text. A 2014 character still gets the Both version.
 #[test]
-fn a_both_editions_element_is_never_superseded() {
+fn a_both_element_a_2024_element_replaces_is_superseded_for_2024_characters_only() {
     let e = engine();
-    let both = e.universe(Ruleset::Dnd2024).get(BOTH_FEAT).expect("loaded");
+    let gifts = |ruleset: Ruleset| -> Vec<String> {
+        let s = commands::new_character(&e, ruleset);
+        let key = commands::slot_key(&e.derive(&s), "ID_LEVEL_1", "Class", 1).expect("class slot");
+        let s = commands::select(
+            &e,
+            &s,
+            &key,
+            borealis_engine::state::Choice::Element(BOTH.into()),
+        )
+        .expect("both class")
+        .state;
+        let snap = e.derive(&s);
+        let mut ids: Vec<String> = snap
+            .slots
+            .iter()
+            .find(|x| x.name == "Walker's Gift")
+            .expect("gift slot")
+            .options
+            .iter()
+            .map(|o| o.id.clone())
+            .collect();
+        ids.sort();
+        ids
+    };
+    assert_eq!(gifts(Ruleset::Dnd2024), [NEW_FEAT]);
+    assert_eq!(gifts(Ruleset::Dnd2014), [BOTH_FEAT]);
     assert!(
-        !both.superseded,
-        "a Both element is not replaced by a 2024 equivalent"
+        e.universe(Ruleset::Dnd2024)
+            .get(BOTH_FEAT)
+            .expect("loaded")
+            .superseded
     );
-    // a bundled `any` element (a core language) is still replaced by its 2024 version
-    let elvish = e
-        .universe(Ruleset::Dnd2024)
-        .get("ID_LANGUAGE_ELVISH")
-        .expect("core language");
-    assert!(elvish.superseded);
+    assert!(
+        !e.universe(Ruleset::Dnd2014)
+            .get(BOTH_FEAT)
+            .expect("loaded")
+            .superseded
+    );
 }

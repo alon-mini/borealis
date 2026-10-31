@@ -801,7 +801,6 @@ mod tests {
             replaced_ids: Vec::new(),
             toggle_effects: Vec::new(),
             legacy_accepted: false,
-            both_editions: false,
             user_edition_book: None,
         };
         let m =

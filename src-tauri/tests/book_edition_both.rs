@@ -86,3 +86,58 @@ fn the_user_sets_both_editions_on_a_2014_book_stored_as_both() {
     assert!(offers_class(&app, Ruleset::Dnd2014, "Oldcaller"));
     assert!(offers_class(&app, Ruleset::Dnd2024, "Oldcaller"));
 }
+
+/// Second review: characters that took a class of a book the importer guessed Both editions keep
+/// it, with its feature, when the user sets the book to one edition (each the other way round).
+#[test]
+fn characters_keep_a_both_books_class_when_the_book_is_set_to_one_edition() {
+    for (setting, other) in [
+        (Ruleset::Dnd2014, Ruleset::Dnd2024),
+        (Ruleset::Dnd2024, Ruleset::Dnd2014),
+    ] {
+        let app = App::new();
+        app.import(
+            "both.xml",
+            &book(BOTH, "BTH", "Bothwalker", "20250115", false),
+        );
+        assert_eq!(app.source(BOTH)["edition"], "any");
+        let hero = app.pick_class(&app.hero(other), "ID_BTH_CLASS");
+        let gift = hero
+            .slots
+            .iter()
+            .find(|s| s.title == "Spider Gift")
+            .unwrap()
+            .id
+            .clone();
+        let hero = app
+            .state
+            .apply_selection(&hero.id, &gift, "ID_BTH_CF_WEB")
+            .expect("feature");
+        app.state.save_character(&hero.id).expect("save");
+        app.state
+            .set_source_edition(BOTH, setting, &NullSink)
+            .expect("set one edition");
+        let app = app.restart();
+        let reopened = app.state.load_character(&hero.id).expect("load");
+        let chosen = |title: &str| {
+            reopened
+                .slots
+                .iter()
+                .find(|s| s.title == title)
+                .and_then(|s| s.chosen.as_ref())
+                .map(|c| c.id.clone())
+        };
+        assert_eq!(
+            chosen("Class").as_deref(),
+            Some("ID_BTH_CLASS"),
+            "{setting:?}"
+        );
+        assert_eq!(
+            chosen("Spider Gift").as_deref(),
+            Some("ID_BTH_CF_WEB"),
+            "{setting:?}"
+        );
+        // a new character of the other edition is not offered it any more
+        assert!(!offers_class(&app, other, "Bothwalker"), "{setting:?}");
+    }
+}
