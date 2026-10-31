@@ -54,3 +54,22 @@ describe("IM17 import preview", () => {
     await waitFor(() => expect(install).toHaveBeenCalledWith({ previewId: expect.any(String), editions: { "Grim Test: Player's Guide (2025)": "any" } }));
   });
 });
+
+describe("IM17 mock guess (mirrors borealis_migrate::edition)", () => {
+  it("follows the second review's edge cases", async () => {
+    const { guessEdition } = await import("../api/mock/book-editions");
+    const cases: [string, string, string][] = [
+      ["Heliana's Guide (5e 2024)", "", "dnd2024"],
+      ["Subclasses for D&D 5e (2024 rules)", "", "dnd2024"],
+      ["Version 5.5 Classes", "", "dnd2014"],
+      ["Classes for D&D 5.5", "", "dnd2024"],
+      ["Homebrew", "Works with 5e (2014) and 5.5e (2024).", "any"],
+      ["Homebrew", "Usable with the 2014 or the 2024 Player's Handbook.", "any"],
+      ["Homebrew", "For 2014 rules. A version for the 2024 rules is coming.", "dnd2014"],
+      ["Homebrew", "Not compatible with 5.5e.", "dnd2014"],
+      ["Homebrew", "Last updated 2024.", "dnd2014"],
+      ["Classes 2014/2024", "", "any"],
+    ];
+    for (const [name, description, want] of cases) expect([name, description, guessEdition(name, {}, description)]).toEqual([name, description, want]);
+  });
+});

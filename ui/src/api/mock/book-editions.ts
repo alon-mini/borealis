@@ -1,4 +1,7 @@
 import type { BookRuleset, ContentPack, PreviewBook } from "../types";
+import { guessEdition } from "./edition-guess";
+
+export { guessEdition };
 import { apiError } from "./errors";
 
 /**
@@ -7,45 +10,6 @@ import { apiError } from "./errors";
  * elements when content loads; the mock only reports the edition.
  */
 export const bookKey = (name: string): string => name.trim().replace(/’/g, "'").toLowerCase();
-
-const PHB_2024_RELEASE = "20240917";
-const NAMES_2014 = ["2014", "5e"];
-const NAMES_2024 = ["2024", "5.5e", "5.5"];
-const JOINS = [" and ", " & ", "&", " / ", "/", " + ", "+", " or "];
-const BOTH_PHRASES = ["with both editions", "for both editions", "supports both editions", "both editions of d&d", "both editions of 5e"];
-const PHRASES_2024 = ["5.5e", "one d&d", "2024 rules", "2024 edition", "2024 player's handbook", "2024 phb", "d&d 2024", "dnd 2024", "5.5 edition"];
-
-const plain = (t: string): string =>
-  t.replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/’/g, "'").toLowerCase().split(/\s+/).filter(Boolean).join(" ");
-
-/** `phrase` in `text` as whole words (like `has_phrase` in `borealis_migrate::edition`). */
-function hasPhrase(text: string, phrase: string): boolean {
-  for (let i = text.indexOf(phrase); i >= 0; i = text.indexOf(phrase, i + 1)) {
-    const before = text[i - 1] ?? "";
-    const after = text[i + phrase.length] ?? "";
-    const after2 = text[i + phrase.length + 1] ?? "";
-    if (/[a-z0-9.]/.test(before) || /[a-z0-9]/.test(after) || (after === "." && /\d/.test(after2))) continue;
-    return true;
-  }
-  return false;
-}
-
-const namesBoth = (t: string): boolean =>
-  BOTH_PHRASES.some((p) => hasPhrase(t, p)) ||
-  NAMES_2014.some((a) => NAMES_2024.some((b) => JOINS.some((j) => hasPhrase(t, `${a}${j}${b}`) || hasPhrase(t, `${b}${j}${a}`))));
-
-/** The importer's rule, IM17 (`borealis_migrate::edition::source_edition`). */
-export function guessEdition(name: string, setters: Record<string, string>, description = ""): BookRuleset {
-  if ((setters.information ?? "").replace("&amp;", "&").startsWith("D&D 5.5e")) return "dnd2024";
-  const n = plain(name);
-  const d = plain(description);
-  if (namesBoth(n) || namesBoth(d)) return "any";
-  const nameSays = (NAMES_2024.some((w) => hasPhrase(n, w)) || hasPhrase(n, "one d&d")) && !NAMES_2014.some((w) => hasPhrase(n, w));
-  if (nameSays || PHRASES_2024.some((p) => hasPhrase(d, p))) return "dnd2024";
-  const release = /^\d{8}$/.test(setters.release ?? "") ? setters.release! : null;
-  const official = (setters.official ?? "").toLowerCase() === "true";
-  return official && release !== null && release >= PHB_2024_RELEASE ? "dnd2024" : "dnd2014";
-}
 
 /** The `Source` elements of some Aurora XML texts with the importer's edition for each, each name once. */
 export function booksOf(texts: string[]): { name: string; detected: BookRuleset }[] {

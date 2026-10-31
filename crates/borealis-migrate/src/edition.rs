@@ -8,14 +8,19 @@
 //! source's edition:
 //! - **2024** when its `information` setter starts with `D&D 5.5e` (the marker the AuroraLegacy
 //!   core and partnered repositories put on every 2024 source), or its own name or description
-//!   says it is 2024 rules: the name names `2024`, `5.5e`/`5.5` or One D&D; the description says
-//!   `5.5e`, One D&D, `2024 rules`/`edition`, `D&D 2024` or the 2024 Player's Handbook;
-//! - **Both editions** (`any`: offered to 2014 and 2024 characters alike) when the name or
-//!   description names both editions: `2014 and 2024`, `2014/2024`, `5e/5.5e`, `5e & 5.5e`,
-//!   `for both editions`;
-//! - 2014 otherwise: never from a release date or a bare year such as 2025, and a name that
-//!   mentions both years without saying "both" (`Collected 2014-2024`) stays 2014. Official
-//!   books keep IM8: one released on or after the 2024 Player's Handbook is 2024.
+//!   says it is 2024 rules and never names 2014: the name says `2024`, `5.5e`, `D&D 5.5`, `5.5
+//!   edition`/`rules` or One D&D (a bare `5e` beside it is the game's name: `5e 2024`); a
+//!   sentence of the description that is not negated (`not`, `isn't`, `incompatible`,
+//!   `without`) says `5.5e`, One D&D, `2024 rules`/`edition`, `D&D 2024` or the 2024 Player's
+//!   Handbook (a bare year there is often a date). `5.5` alone is a version number;
+//! - **Both editions** (`any`: offered to 2014 and 2024 characters alike) when the name or a
+//!   sentence of the description that is not negated names both editions: `2014 and 2024`,
+//!   `2014/2024`, `5e/5.5e`, `5e & 5.5e`, `for both editions`, or "works / compatible / usable
+//!   with" a 2014 and a 2024 edition;
+//! - 2014 otherwise: never from a release date or a bare year such as 2025, and text that names
+//!   both editions any other way (`Collected 2014-2024`, "For 2014 rules. A version for the 2024
+//!   rules is coming.") makes no guess. Official books keep IM8: one released on or after the 2024
+//!   Player's Handbook is 2024.
 //!
 //! The user can set any imported book's edition (2014, 2024 or Both) on the Sources page and in
 //! the import preview (stored in the content preferences, applied when content loads; the
@@ -36,12 +41,19 @@ fn is_release_date(d: &str) -> bool {
     d.len() == 8 && d.bytes().all(|b| b.is_ascii_digit())
 }
 
-/// Words that name the 2014 edition, and the 2024 one, in "both" phrases (`5e/5.5e`).
-const NAMES_2014: [&str; 2] = ["2014", "5e"];
-const NAMES_2024: [&str; 3] = ["2024", "5.5e", "5.5"];
-/// What joins the two in a "both" phrase.
+/// "Both" pairs: a word for the 2014 edition joined to one for the 2024 edition (`2014/2024`,
+/// `5e & 5.5e`). A bare `5e` pairs only with `5.5e`/`5.5`: next to `2024` it is the game's name
+/// (`5e 2024`), not the 2014 edition.
+const BOTH_PAIRS: [(&str, &str); 5] = [
+    ("2014", "2024"),
+    ("2014", "5.5e"),
+    ("2014", "5.5"),
+    ("5e", "5.5e"),
+    ("5e", "5.5"),
+];
+/// What joins the two in a "both" pair.
 const JOINS: [&str; 8] = [" and ", " & ", "&", " / ", "/", " + ", "+", " or "];
-/// Description phrases that present a book as for both editions.
+/// Phrases that present a book as for both editions.
 const BOTH_PHRASES: [&str; 5] = [
     "with both editions",
     "for both editions",
@@ -49,9 +61,36 @@ const BOTH_PHRASES: [&str; 5] = [
     "both editions of d&d",
     "both editions of 5e",
 ];
-/// Description phrases that present a book as 2024 rules.
-const PHRASES_2024: [&str; 9] = [
+/// A sentence that says the book can be used with what it names (`Works with 5e (2014) and
+/// 5.5e (2024)`).
+const USABLE_WITH: [&str; 6] = [
+    "works with",
+    "compatible with",
+    "usable with",
+    "for use with",
+    "playable with",
+    "supports",
+];
+/// Words that turn a sentence around (`Not compatible with 5.5e`): it makes no guess.
+const NEGATIONS: [&str; 4] = ["not", "isn't", "incompatible", "without"];
+/// Words that make a name (or a "usable with" sentence) say 2024. `5.5` alone is a version
+/// number, not an edition.
+const WORDS_2024: [&str; 7] = [
+    "2024",
     "5.5e",
+    "d&d 5.5",
+    "dnd 5.5",
+    "5.5 edition",
+    "5.5 rules",
+    "one d&d",
+];
+/// Phrases that make a description say 2024 (a bare year there is often a date).
+const PHRASES_2024: [&str; 12] = [
+    "5.5e",
+    "d&d 5.5",
+    "dnd 5.5",
+    "5.5 edition",
+    "5.5 rules",
     "one d&d",
     "2024 rules",
     "2024 edition",
@@ -59,7 +98,6 @@ const PHRASES_2024: [&str; 9] = [
     "2024 phb",
     "d&d 2024",
     "dnd 2024",
-    "5.5 edition",
 ];
 
 /// Lower case, `&amp;` and typographic apostrophes folded, HTML tags and runs of white space
@@ -98,23 +136,69 @@ fn has_phrase(text: &str, phrase: &str) -> bool {
     })
 }
 
-/// The text names both editions (`2014 and 2024`, `5e/5.5e`, `for both editions`).
-fn names_both(text: &str) -> bool {
-    BOTH_PHRASES.iter().any(|p| has_phrase(text, p))
-        || NAMES_2014.iter().any(|a| {
-            NAMES_2024.iter().any(|b| {
-                JOINS.iter().any(|j| {
-                    has_phrase(text, &format!("{a}{j}{b}"))
-                        || has_phrase(text, &format!("{b}{j}{a}"))
-                })
-            })
-        })
+/// The sentences of a text (split after `.`, `!` or `?` followed by a space or the end, so
+/// `5.5e` stays whole).
+fn sentences(text: &str) -> Vec<&str> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    let mut start = 0;
+    for (i, b) in bytes.iter().enumerate() {
+        let end = matches!(b, b'.' | b'!' | b'?') && bytes.get(i + 1).is_none_or(|n| *n == b' ');
+        if end {
+            out.push(text[start..=i].trim());
+            start = i + 1;
+        }
+    }
+    if start < text.len() {
+        out.push(text[start..].trim());
+    }
+    out.into_iter().filter(|s| !s.is_empty()).collect()
 }
 
-/// The name presents the book as 2024 (and does not also name 2014 without saying "both").
+fn says_2014(text: &str) -> bool {
+    has_phrase(text, "2014")
+}
+
+fn any_of(text: &str, phrases: &[&str]) -> bool {
+    phrases.iter().any(|p| has_phrase(text, p))
+}
+
+/// The sentence says "not" (or `isn't`, `incompatible`, `without`) somewhere.
+fn negated(sentence: &str) -> bool {
+    any_of(sentence, &NEGATIONS)
+}
+
+/// A sentence explicitly names both editions: a "both" pair (`2014 and 2024`, `5e/5.5e`), a
+/// "both editions" phrase, or it says it is usable with a 2014 and a 2024 edition.
+fn sentence_names_both(s: &str) -> bool {
+    let pair = BOTH_PAIRS.iter().any(|(a, b)| {
+        JOINS
+            .iter()
+            .any(|j| has_phrase(s, &format!("{a}{j}{b}")) || has_phrase(s, &format!("{b}{j}{a}")))
+    });
+    let usable = any_of(s, &USABLE_WITH) && says_2014(s) && any_of(s, &WORDS_2024);
+    pair || usable || any_of(s, &BOTH_PHRASES)
+}
+
+/// The text names both editions in a sentence that is not negated.
+fn names_both(text: &str) -> bool {
+    sentences(text)
+        .into_iter()
+        .any(|s| !negated(s) && sentence_names_both(s))
+}
+
+/// The name presents the book as 2024: it says 2024 / 5.5e / D&D 5.5 / One D&D and not 2014.
 fn name_says_2024(name: &str) -> bool {
-    let says = NAMES_2024.iter().any(|w| has_phrase(name, w)) || has_phrase(name, "one d&d");
-    says && !NAMES_2014.iter().any(|w| has_phrase(name, w))
+    any_of(name, &WORDS_2024) && !says_2014(name)
+}
+
+/// The description presents the book as 2024: a sentence that is not negated says 2024, and the
+/// description never says 2014 (naming both editions any other way makes no guess).
+fn description_says_2024(description: &str) -> bool {
+    !says_2014(description)
+        && sentences(description)
+            .into_iter()
+            .any(|s| !negated(s) && any_of(s, &PHRASES_2024))
 }
 
 /// IM17: the edition a `Source` element presents itself as (see the module docs): `Dnd2024`,
@@ -132,7 +216,7 @@ pub fn source_edition(source: &Element) -> Ruleset {
     if names_both(&name) || names_both(&description) {
         return Ruleset::Any;
     }
-    if name_says_2024(&name) || PHRASES_2024.iter().any(|p| has_phrase(&description, p)) {
+    if name_says_2024(&name) || (!says_2014(&name) && description_says_2024(&description)) {
         return Ruleset::Dnd2024;
     }
     // IM8: an official book released on or after the 2024 Player's Handbook
@@ -353,7 +437,6 @@ mod tests {
             "Player’s Handbook (2024)",
             "Heroes of 2024",
             "Some Book for 5.5e",
-            "Homebrew (5.5)",
             "One D&D Playtest Classes",
         ] {
             assert_eq!(source_edition(&source(name, &[])), d24, "{name}");
@@ -499,6 +582,54 @@ mod tests {
                 Some(Ruleset::Dnd2024),
                 Some(Ruleset::Any)
             ]
+        );
+    }
+
+    /// Second review L1: the guess edge cases, kept conservative (the user can override any).
+    #[test]
+    fn im17_edge_cases_of_the_second_review() {
+        let d14 = Ruleset::Dnd2014;
+        let d24 = Ruleset::Dnd2024;
+        let both = Ruleset::Any;
+        // a bare `5e` next to 2024 does not name 2014
+        for name in [
+            "Heliana's Guide (5e 2024)",
+            "Subclasses for D&D 5e (2024 rules)",
+        ] {
+            assert_eq!(source_edition(&source(name, &[])), d24, "{name}");
+        }
+        // `5.5` alone is a version, not an edition: 5.5e, D&D 5.5, 5.5 edition or 5.5 rules
+        for name in ["Version 5.5 Classes", "Homebrew (5.5)"] {
+            assert_eq!(source_edition(&source(name, &[])), d14, "{name}");
+        }
+        for name in [
+            "Classes for D&D 5.5",
+            "Feats (5.5 rules)",
+            "The 5.5 Edition Companion",
+        ] {
+            assert_eq!(source_edition(&source(name, &[])), d24, "{name}");
+        }
+        // descriptions mirror the name rule
+        for (text, want) in [
+            ("Subclasses for D&D 5e, built on the 2024 rules.", d24),
+            ("Works with 5e (2014) and 5.5e (2024).", both),
+            ("Usable with the 2014 or the 2024 Player's Handbook.", both),
+            (
+                "For 2014 rules. A version for the 2024 rules is coming.",
+                d14,
+            ),
+            ("Not compatible with 5.5e.", d14),
+            ("This book isn't for the 2024 rules.", d14),
+        ] {
+            assert_eq!(source_edition(&described("Homebrew", text)), want, "{text}");
+        }
+        // a name that says 2014 keeps the book 2014 whatever the description says of 2024
+        assert_eq!(
+            source_edition(&described(
+                "The Crooked Moon 2014",
+                "Updated for the 2024 rules."
+            )),
+            d14
         );
     }
 }
